@@ -1,55 +1,91 @@
-# Desktop Looks 1.1
+# Desktop Looks
 
-Save coordinated desktop appearances: themes, fonts, cursors, wallpaper, panel/menu choices, desklets, custom icons, Firefox, Millennium and Vencord.
+Save and switch coordinated appearances on a Linux Cinnamon desktop: themes,
+fonts, wallpaper, panel layout, app and folder icons, Firefox, Steam/Millennium,
+and Discord/Vencord. Version 1.2.0.
 
-## Update your existing installation
+## Run or install
 
-Extract Desktop-Looks-v1.1.zip and run update-installed.sh from your normal desktop. This performs the approved asset migration and updates your installed applet. You already approved these changes; the script is executable and needs no administrator privileges.
+Use Python 3 with PyGObject and GTK 3/Gio typelibs. On Ubuntu/Mint:
 
-The updater creates a complete backup before moving assets. It moves the two Windows 95 wallpapers from Downloads into Pictures/Wallpapers/Windows95, custom app icon images from Pictures/App Icons into .local/share/icons/custom-apps/windows95, and the three personal font directories into .local/share/fonts. It keeps the icon prompts text with the source material, preserves the image/font contents, updates every launcher icon variant and the active wallpaper path, migrates all saved looks it finds, and adds a fresh current look with Firefox and desktop layout. Sounds stay unchanged.
+```sh
+sudo apt install python3-gi gir1.2-gtk-3.0
+/usr/bin/python3 desktop-looks@local/looks.py gui
+```
 
-If migration fails, the updater attempts rollback from its backup and move journal. To prepare/review without applying, run /usr/bin/python3 migrate.py. The staged plan is written into Migration-stage/plan.json. A completed migration records apply_completed=true and the backup path there.
+For a fresh panel-applet installation, run `./install.sh` and add Desktop Looks
+through System Settings → Applets. The repository does not distribute personal
+`.look` snapshots; import your own profiles through the manager.
 
-This update has been PREPARED BUT NOT APPLIED by the agent. Individual-file access grants broke the normal command runner, and the alternative file tools still see live folders as read-only. The installed v1.0 applet and live assets remain unchanged by this task. Running the updater from your normal desktop bypasses that execution-environment problem through your own user session. Alternatively, ask the agent to continue in a fresh turn with directory-level access only.
+Existing installations can use the source manager above to run the updated code.
+The legacy `update-installed.sh` performs a **specific Windows 95 asset migration**;
+it is not a general updater. Review `migrate.py` before using it. Running that
+module without arguments stages a plan; `--apply` moves assets, rewrites profiles
+and updates the applet after creating a backup. A generic updater is proposed in
+the [compatibility plan](docs/COMPATIBILITY.md).
 
-## Fresh installation
+## Save and switch
 
-Run install.sh, then add Desktop Looks through System Settings → Applets. If an installation already exists, use update-installed.sh instead. The installer imports the included Current-95-Firefox.look; importing does not apply the look automatically.
+Configure the desktop, choose **Save current look**, and give it a name. To switch,
+select a saved look and components, then **Apply selected**. A recovery look is
+saved first. Import/Export transfers profiles between accounts.
 
-You can use the manager without installing the panel applet by running /usr/bin/python3 desktop-looks@local/looks.py gui.
+Close Steam, Discord and Firefox completely before restoring their components.
+Reopen the manager after updating its source. Panels and desktop layout may need
+a logout/login. Profile rows and the apply dialog display the saved Vencord theme
+selection, including an explicit empty-selection message. Changing a theme after
+saving does not update that existing snapshot; save a new look to retain it.
 
-## Everyday workflow
+## Captured appearance
 
-Configure your desktop normally, then Save current look under a memorable name. To switch, select a saved look, choose the components, and Apply selected. A recovery look is saved first. Import and Export move personal look files between accounts.
+| Component | Scope |
+| --- | --- |
+| Cinnamon | GTK/window/icon/cursor themes, fonts, wallpaper, panels, applet/desklet settings and personal assets |
+| App icons | Main and localized icons, desktop shortcut icons, explicit `StartupWMClass` mappings |
+| Folder icons | Gio metadata in standard home folders and configured tracked folders |
+| Firefox | Automatically selected profile's static add-on theme, appearance preferences and chrome assets |
+| Steam/Millennium | Theme files, active selection, accent/injection options and Quick CSS |
+| Discord/Vencord | Theme files, enabled selection, online links, Quick CSS and selected window options |
 
-Close Steam, Discord and Firefox completely before applying their selected appearance components. Log out and back in after restoring panels, applets, desklets or desktop icon placement.
+Icon restore preserves launcher commands and Desktop Action icons. Known newer
+apps fall back to their installed vendor icon when an older snapshot has no
+override. Private launchers without a vendor default are kept with a warning.
+Vendor lookup covers native system, user/system Flatpak and Snap exports, plus
+absolute `XDG_DATA_DIRS` locations in preference order.
 
-## Fonts and desktop layout
+`StartupWMClass` supports X11 window matching. Saved explicit mappings travel
+across accounts; older profiles preserve the receiving launcher's mapping. This
+does not implement Wayland app-ID matching or fix tray icons supplied by apps.
 
-A look includes selected interface/document/monospace/title fonts, text scaling, personal font files, theme/icon/cursor assets, window styling, wallpaper, panel position/height/hiding delays, applet selection and placement, Classic Menu settings, enabled extensions and their settings.
+Native and Flatpak Vencord paths work separately; automatic translation between
+installations is unsupported. Online CSS imports remain online dependencies.
+See [tested support and six reproduced gaps](docs/COMPATIBILITY.md).
 
-Desklets include enabled selection, X/Y coordinates, decoration, snapping/grid size, locking, and personal settings/assets. The enabled-desklet list stores the coordinates. Your current desklet list is empty. Nemo desktop icon placement is captured from .config/nemo/desktop-metadata. Position coordinates are restored as saved; a changed monitor arrangement may require repositioning.
+## Recovery and scope
 
-Custom app icon assignment restores base and localized Icon fields without changing the receiving launcher's Exec command. Personal folder-icon metadata is scanned in standard home folders and two levels below them. Use Track folder icons to include additional folders within your home. No folder-icon metadata was visible to this execution session; make a fresh save from the normal desktop to capture it there.
+Profiles live in `~/.local/share/desktop-looks`; the installed applet lives in
+`~/.local/share/cinnamon/applets/desktop-looks@local`. Supported app settings are
+merged while retaining unrelated values. Application login data, browser history,
+games and saves are outside the appearance patches.
 
-## Firefox
-
-The new component saves the default profile's selected static add-on theme and its package, browser appearance/font preferences, toolbar layout, and chrome CSS/images/fonts. It does not copy browsing history, bookmarks, passwords, sessions, unrelated extension settings or the entire browser profile. The receiving account needs an existing Firefox profile; start Firefox once if necessary.
-
-Theme activation is delegated to Firefox's own AddonManager in a brief offline headless session while Firefox is closed. The adapter restores its temporary startup settings and saved browser-session files afterwards; it does not hand-edit the add-on database. The current snapshot uses Windows 95. Any custom CSS remains subject to Firefox version changes.
-
-Firefox capture, selective preference restoration, static-theme validation and automation protocol framing are tested. Live theme activation could NOT be tested here: Firefox crashes or cannot open local sockets in this execution environment. Verify the activation adapter from the normal desktop before relying on browser theme switching. Other tested components do not depend on that Firefox activation check.
-
-## Steam and Discord
-
-Millennium captures theme files, active selection, theme conditions, accent/injection choices and Quick CSS. Vencord captures themes, enabled selections, online theme links, Quick CSS and selected window appearance options, including Flatpak Discord. Their other settings and login data are not part of the appearance patches. Online CSS imports remain online imports rather than frozen copies of remote sites.
-
-## Recovery, privacy and storage
-
-Saved looks live in .local/share/desktop-looks. The applet lives in .local/share/cinnamon/applets/desktop-looks@local. Each look/recovery is independent; delete unwanted old profiles through Open saved looks. Profiles can contain personal paths, wallpaper images and applet preferences, and saved applets/extensions can contain code: import trusted looks and review before sharing publicly.
-
-Personal home paths in saved settings and text assets are remapped when importing to another user. System applications must be installed separately. Games, game saves and Steam library permissions are not managed. System-wide theme modifications are not copied. Theme assets are restored without removing unrelated installed theme folders.
+Home paths in assets are remapped across accounts. Receiving machines still need
+the corresponding applications. Profiles can contain personal paths and executable
+applet code; import trusted profiles. Unrelated installed themes are retained.
 
 ## Verification
 
-24 tests passed: 22 backend/Firefox/layout tests, plus complete migration and rollback tests in temporary home folders. All six current saved looks were staged and validated without changing their live originals. A new current snapshot includes 36,926 asset/configuration entries, 72 desktop settings, 21 app icon assignments and Firefox. The applet's JavaScript passes syntax checking. Live Firefox activation remains unverified as explained above.
+```sh
+/usr/bin/python3 -m unittest discover -s tests -v
+/usr/bin/python3 tests/compatibility_probe.py
+node --check desktop-looks@local/applet.js
+sh -n install.sh update-installed.sh
+```
+
+49 regression tests pass in disposable homes. Six separate probes reproduce
+known unsupported cases; those are not counted as passing support tests.
+`compatibility_probe.py --require-all` fails until those gaps are implemented.
+GitHub Actions is configured for Ubuntu 22.04 and 24.04.
+
+These are backend/fixture checks, not live certification of every app or desktop.
+Live Firefox activation, remote CSS compatibility and Wayland behavior need
+separate integration validation.

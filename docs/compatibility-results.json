@@ -1,0 +1,37 @@
+{
+  "regression_suite": "run unittest discover separately",
+  "probes": [
+    {
+      "scenario": "localized-desktop-directory",
+      "supported": false,
+      "observation": "Configured Bureau shortcut is omitted; capture scans Desktop only."
+    },
+    {
+      "scenario": "custom-xdg-config-home",
+      "supported": false,
+      "observation": "Vencord settings in a nondefault XDG_CONFIG_HOME are omitted."
+    },
+    {
+      "scenario": "native-to-flatpak-discord",
+      "supported": false,
+      "observation": "Restore writes donor native path; existing Flatpak selection stays unchanged."
+    },
+    {
+      "scenario": "missing-selected-theme-preflight",
+      "supported": false,
+      "observation": "Validation accepts a selected local theme whose CSS was never bundled."
+    },
+    {
+      "scenario": "explicit-firefox-profile-selection",
+      "supported": false,
+      "observation": "Resolver selects personal automatically; API has no explicit profile selector."
+    },
+    {
+      "scenario": "offline-remote-css-dependencies",
+      "supported": false,
+      "observation": "CSS wrapper is bundled; its remote dependency still requires network access."
+    }
+  ],
+  "supported": 0,
+  "unsupported": 6
+}

@@ -139,10 +139,14 @@ def read_json(path):
 
 
 def icon_line(text):
+    return desktop_entry_value(text,'Icon')
+
+
+def desktop_entry_value(text,key):
     section=False
     for line in text.splitlines():
         if line.startswith('['): section=line.strip()=='[Desktop Entry]'
-        if section and line.startswith('Icon='): return line[5:]
+        if section and line.startswith(key+'='): return line[len(key)+1:]
     return None
 
 
@@ -157,6 +161,33 @@ def change_icon(text, icon):
             done=True
         else: result.append(line)
     if section and not done and icon is not None: result.append('Icon='+icon)
+    return '\n'.join(result)+'\n'
+
+
+def discord_theme_summary(manifest):
+    if 'discord' not in manifest.get('groups',[]):return ''
+    names=[];found=False
+    for patch in manifest.get('json_patches',[]):
+        if patch.get('group')!='discord':continue
+        found=True
+        values=patch.get('values',{})
+        names.extend(values.get('enabledThemes',[]))
+        links=values.get('themeLinks',[])
+        if links:names.append(f'{len(links)} online theme(s)')
+    if not found:return 'Discord theme: no saved Vencord settings'
+    return 'Discord theme: '+(', '.join(dict.fromkeys(names)) if names else 'no theme selected')
+
+
+def change_window_class(text,value):
+    result=[];section=False;done=False
+    for line in text.splitlines():
+        if line.startswith('['):
+            if section and not done:result.append('StartupWMClass='+value);done=True
+            section=line.strip()=='[Desktop Entry]'
+        if section and line.startswith('StartupWMClass='):
+            if not done:result.append('StartupWMClass='+value);done=True
+        else:result.append(line)
+    if section and not done:result.append('StartupWMClass='+value)
     return '\n'.join(result)+'\n'
 
 
@@ -186,6 +217,16 @@ class Looks:
 
     def remap(self, value, source):
         return value.replace(source+'/',str(self.home)+'/') if isinstance(value,str) else value
+
+    def vendor_launcher(self, name):
+        roots=[self.home/'.local/share/flatpak/exports/share/applications']
+        data_dirs=os.environ.get('XDG_DATA_DIRS') or '/usr/local/share:/usr/share'
+        roots.extend(Path(root)/'applications' for root in data_dirs.split(':') if Path(root).is_absolute())
+        roots.extend([Path('/usr/local/share/applications'),Path('/usr/share/applications'),
+                      Path('/var/lib/flatpak/exports/share/applications'),
+                      Path('/var/lib/snapd/desktop/applications')])
+        roots=list(dict.fromkeys(roots))
+        return next((root/name for root in roots if (root/name).is_file()),None)
 
     def permitted(self, rel, group, dependency=False):
         if group=='firefox':return firefox.allowed(rel)
@@ -252,7 +293,7 @@ class Looks:
     def scan(self, name, groups):
         m={'format':'desktop-looks','version':1,'name':name,'created':dt.datetime.now(dt.timezone.utc).isoformat(),
            'source_home':str(self.home),'groups':sorted(groups),'files':[], 'settings':{},'json_patches':[],
-           'app_icons':{},'folder_icons':{},'absent':[],'warnings':[]}
+           'app_icons':{},'app_window_classes':{},'desktop_icons':{},'folder_icons':{},'absent':[],'warnings':[]}
         sources={}
         def add(p,group,dependency=False):
             try: rel=str(p.relative_to(self.home))
@@ -283,7 +324,13 @@ class Looks:
             if 'Firefox' in self.running_apps(['firefox']):m['warnings'].append('Firefox is open; its appearance is captured from the last settings written to disk. Close it and save again for an exact snapshot.')
         if 'icons' in groups:
             for p in (self.home/'.local/share/applications').glob('*.desktop'):
-                if p.is_file(): m['app_icons'][p.name]=icon_line(p.read_text(errors='replace'))
+                if p.is_file():
+                    text=p.read_text(errors='replace')
+                    m['app_icons'][p.name]=icon_line(text)
+                    window_class=desktop_entry_value(text,'StartupWMClass')
+                    if window_class:m['app_window_classes'][p.name]=window_class
+            for p in (self.home/'Desktop').glob('*.desktop'):
+                if p.is_file(): m['desktop_icons'][p.name]=icon_line(p.read_text(errors='replace'))
             m['folder_icons'],warnings=self.folder_icons();m['warnings']+=warnings
         if 'steam' in groups:
             rel='.config/millennium/config.json';d=read_json(self.home/rel)
@@ -295,7 +342,7 @@ class Looks:
                 d=read_json(self.home/rel)
                 if d: m['json_patches'].append({'path':rel,'group':'discord','values':{k:d[k] for k in VC_KEYS if k in d}})
         # Include referenced icons, wallpapers, CSS and fonts kept outside the usual theme folders.
-        refs=[(m['settings'],'desktop'),(m['app_icons'],'icons'),(m['folder_icons'],'icons')]
+        refs=[(m['settings'],'desktop'),(m['app_icons'],'icons'),(m['desktop_icons'],'icons'),(m['folder_icons'],'icons')]
         for group in groups:
             for p,item in list(sources.values()):
                 if item['group']==group and group!='firefox' and p.suffix in TEXT_SUFFIXES and not p.is_symlink() and p.stat().st_size<2_000_000:
@@ -321,7 +368,7 @@ class Looks:
                 if s.startswith(str(self.home)+'/') and Path(s).is_file(): add(Path(s),group,True)
         m['files']=[item for p,item in sources.values()]
         m['summary']={'files':len(sources),'folder_icons':len(m['folder_icons']),'app_icons':len(m['app_icons']),
-                      'settings':sum(len(v) for v in m['settings'].values())}
+                      'desktop_icons':len(m['desktop_icons']),'settings':sum(len(v) for v in m['settings'].values())}
         return m,sources
 
     def capture(self, name, groups=None, output=None):
@@ -371,10 +418,15 @@ class Looks:
                 if not set(item['values'])<=allowed:raise ValueError('Non-appearance app setting in profile')
                 if item['group']=='steam' and not set(item['values'].get('general',{}))<={'accentColor','injectCSS','injectJavascript'}:raise ValueError('Non-appearance Steam setting')
                 self.dest(item['path'])
-            for name,icon in m['app_icons'].items():
-                if icon is not None and (not isinstance(icon,str) or '\n' in icon or '\r' in icon):raise ValueError('Invalid icon value')
-                if Path(name).name!=name or not name.endswith('.desktop'):raise ValueError('Invalid launcher filename')
-                self.dest('.local/share/applications/'+name)
+            for field,root in [('app_icons','.local/share/applications'),('desktop_icons','Desktop')]:
+                for name,icon in m.get(field,{}).items():
+                    if icon is not None and (not isinstance(icon,str) or '\n' in icon or '\r' in icon):raise ValueError('Invalid icon value')
+                    if Path(name).name!=name or not name.endswith('.desktop'):raise ValueError('Invalid launcher filename')
+                    self.dest(root+'/'+name)
+            for name,value in m.get('app_window_classes',{}).items():
+                if name not in m['app_icons']:raise ValueError('Window class has no saved app launcher')
+                if not isinstance(value,str) or not value or len(value)>256 or any(c in value for c in '\n\r\0'):
+                    raise ValueError('Invalid launcher window class')
             for rel,attrs in m['folder_icons'].items():
                 self.dest(rel)
                 if not set(attrs)<={'metadata::custom-icon','metadata::custom-icon-name'}:raise ValueError('Invalid folder metadata')
@@ -464,14 +516,38 @@ class Looks:
                 d.update(values)
             self.write(path,(json.dumps(d,indent=2,ensure_ascii=False)+'\n').encode())
         if 'icons' in groups:
-            for name,icon in m['app_icons'].items():
+            effective={}
+            for name in sorted(set(m['app_icons'])|set(previous.get('app_icons',{}))):
                 dest=self.dest('.local/share/applications/'+name)
-                candidates=[dest,Path('/usr/share/applications')/name,Path('/usr/local/share/applications')/name,
-                            Path('/var/lib/flatpak/exports/share/applications')/name,self.home/'.local/share/flatpak/exports/share/applications'/name]
-                base=next((p for p in candidates if p.is_file()),None)
+                vendor=self.vendor_launcher(name)
+                if name in m['app_icons']:
+                    icon=m['app_icons'][name]
+                elif vendor:
+                    # A launcher added since this snapshot must not retain the last look's override.
+                    icon=icon_line(vendor.read_text())
+                else:
+                    warnings.append('No installed default for newer launcher; kept icon: '+name);continue
+                base=dest if dest.is_file() else vendor
                 if base is None:
                     warnings.append('Launcher not installed here; skipped icon: '+name);continue
-                self.write(dest,change_icon(base.read_text(),remap(icon) if icon is not None else None).encode(),0o644)
+                effective[name]=remap(icon) if icon is not None else None
+                text=change_icon(base.read_text(),effective[name])
+                if name in m.get('app_window_classes',{}):
+                    text=change_window_class(text,m['app_window_classes'][name])
+                self.write(dest,text.encode(),0o644)
+            # Old profiles saved menu icons only. Match existing desktop shortcuts by filename;
+            # new profiles preserve their independent icon assignments, without copying commands.
+            desktop_icons=m.get('desktop_icons',effective)
+            for name in sorted(set(desktop_icons)|set(previous.get('desktop_icons',{}))):
+                dest=self.dest('Desktop/'+name)
+                if not dest.is_file():continue
+                if name in desktop_icons:icon=desktop_icons[name]
+                elif name in effective:icon=effective[name]
+                else:
+                    vendor=self.vendor_launcher(name)
+                    if vendor is None:continue
+                    icon=icon_line(vendor.read_text())
+                self.write(dest,change_icon(dest.read_text(),remap(icon) if icon is not None else None).encode(),dest.stat().st_mode)
             if self.metadata:
                 from gi.repository import Gio
                 # Clear old profile-specific folder icons as well as restoring saved assignments.
@@ -527,6 +603,7 @@ def gui(manager):
             for path,m in manager.profiles():
                 r=Gtk.ListBoxRow();r.path=path;r.manifest=m
                 text=f"{m['name']}\n{m['created'][:16].replace('T',' ')} UTC · {', '.join(m['groups'])} · {path.stat().st_size/1e6:.1f} MB"
+                if 'discord' in m['groups']:text+='\n'+discord_theme_summary(m)
                 label=Gtk.Label(label=text);label.set_xalign(0);label.set_margin_top(8);label.set_margin_bottom(8);label.set_margin_start(8);r.add(label);self.list.add(r)
             self.list.show_all()
         def error(self,e):
@@ -556,7 +633,9 @@ def gui(manager):
             except Exception as e:self.error(e);return
             groups=self.groups()
             d=Gtk.MessageDialog(transient_for=self,modal=True,message_type=Gtk.MessageType.QUESTION,buttons=Gtk.ButtonsType.OK_CANCEL,text='Apply '+m['name']+'?')
-            d.format_secondary_text('The selected appearance components will be restored. A recovery look will be saved first. Panels and applets may require logging out and back in.');r=d.run();d.destroy()
+            detail='The selected appearance components will be restored. A recovery look will be saved first. Panels and applets may require logging out and back in.'
+            if 'discord' in groups and 'discord' in m['groups']:detail+='\n\n'+discord_theme_summary(m)
+            d.format_secondary_text(detail);r=d.run();d.destroy()
             if r!=Gtk.ResponseType.OK:return
             def task():
                 recovery,warnings=manager.restore(path,groups)

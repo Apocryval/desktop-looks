@@ -1,9 +1,10 @@
-cd /home/adam/Documents/Codex/2026-10-25/can-you-animate-a-short-sequence/outputs/desktop-looks
-
-cat >> .gitignore <<'EOF'
+# Personal profiles, snapshots and generated migration state
 *.look
 *.zip
 __pycache__/
 *.pyc
 Migration-stage/
 Backups/
+.env
+.env.*
+!.env.example

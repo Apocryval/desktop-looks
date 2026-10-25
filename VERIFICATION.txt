@@ -1,5 +1,15 @@
-Desktop Looks 1.1
-24 tests passed: 22 backend/Firefox/layout and 2 complete migration/rollback.
-6 existing live profiles staged and validated without changing them.
-Firefox activation not live-tested because Firefox cannot start in the execution environment.
-Live migration and installed-app update remain pending due to folder access/runtime errors.
+Desktop Looks 1.2.0 — 25 October 2026
+
+49 regression tests passed locally in temporary home directories.
+Six portability probes reproduce known unsupported cases; see
+docs/COMPATIBILITY.md and docs/compatibility-results.json.
+
+Commands:
+  /usr/bin/python3 -m unittest discover -s tests -v
+  /usr/bin/python3 tests/compatibility_probe.py
+  node --check desktop-looks@local/applet.js
+  sh -n install.sh update-installed.sh
+
+No live broad-app, Wayland or Firefox activation certification is claimed.
+GitHub Actions is configured for Ubuntu 22.04 and 24.04; check Actions for
+the pushed commit's hosted execution status.

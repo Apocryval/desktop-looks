@@ -1,0 +1,26 @@
+name: Tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  regression:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install test runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi gir1.2-glib-2.0 nodejs
+      - name: Regression tests in temporary home directories
+        run: /usr/bin/python3 -m unittest discover -s tests -v
+      - name: Applet and shell syntax
+        run: |
+          node --check desktop-looks@local/applet.js
+          sh -n install.sh update-installed.sh
+      - name: Report known portability gaps
+        run: /usr/bin/python3 tests/compatibility_probe.py
