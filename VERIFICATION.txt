@@ -1,0 +1,5 @@
+Desktop Looks 1.1
+24 tests passed: 22 backend/Firefox/layout and 2 complete migration/rollback.
+6 existing live profiles staged and validated without changing them.
+Firefox activation not live-tested because Firefox cannot start in the execution environment.
+Live migration and installed-app update remain pending due to folder access/runtime errors.
